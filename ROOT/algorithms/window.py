@@ -4,14 +4,15 @@ from PyQt5.QtWidgets import *
 class MyWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("BitNote")
-        self.setGeometry(20, 20, 1000, 700)     
+        self.initUI()
+        
         #파일, 편집, 포멧, 보기, 윈도우, 도움
         self.menubar = self.menuBar()
         self.menubar.setNativeMenuBar(False)
 
         # file menu action
         self.new_action = QAction("New")
+        self.new_action.triggered.connect(self.newFile)
         self.quit_action = QAction("Quit")
         self.quit_action.triggered.connect(self.close)
 
@@ -42,7 +43,25 @@ class MyWindow(QMainWindow):
         help_menu = self.menubar.addMenu("Help")
         help_menu.addAction(self.doc_action)
         help_menu.addAction(self.release_action)
-        help_menu.addAction(self.license_action)        
+        help_menu.addAction(self.license_action)
+        
+    def initUI(self):
+        central_widget = QWidget()
+        vbox = QVBoxLayout(central_widget)
+        self.te = QTextEdit()
+        self.te.setAcceptRichText(True)
+        
+        vbox.addStretch(0)
+        vbox.addWidget(self.te)
+        vbox.addStretch(0)
+
+
+        self.setCentralWidget(central_widget)
+        
+        self.setWindowTitle("BitNote")
+        self.setGeometry(20, 20, 1000, 700)     
+    
+    def newFile(self):
         
                
 
