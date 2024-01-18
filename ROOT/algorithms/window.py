@@ -62,7 +62,8 @@ class MyWindow(QMainWindow):
         self.setGeometry(20, 20, 1000, 700)     
     
     def newFile(self):
-        
+        print("created New File")
+        print(self)
                
 
 
