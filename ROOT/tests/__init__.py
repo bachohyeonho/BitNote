@@ -1,7 +1,5 @@
-def test(a):
-    if a == 0:
-        print("good bye")
-        return
-    else: print("hihi")
+import time
 
-test(0)
+now = time
+
+print(now.time())

@@ -2,10 +2,15 @@ import os
 import sys
 from PyQt5.QtWidgets import *
 import glob
+import time
+
+now = time
+
 
 
 class MyWindow(QMainWindow):
     def __init__(self, fileNumber, fileNumbersLocation):
+        self.startTime = now.time()
         super().__init__()
         self.initUI()
         self.fileNumber = fileNumber  #How can I update this?
@@ -80,6 +85,9 @@ class MyWindow(QMainWindow):
         help_menu.addAction(self.doc_action)
         help_menu.addAction(self.release_action)
         help_menu.addAction(self.license_action)
+        
+        #automatic remove
+        self.automaticFileRemoveSystem()
         
     def initUI(self):
         central_widget = QWidget()
@@ -202,6 +210,29 @@ class MyWindow(QMainWindow):
     
         self.fileNumber = len(file_list)
         print("file number updated")
+        
+    def automaticFileRemoveSystem(self):
+        #1. get File List
+        path = "./txtFiles/*"
+        self.fileList = glob.glob(path)
+        self.fileTimeList = []
+        self.fileSizeList = []
+        
+        #2. get managed time of files. also list. and also 
+        for i in range(len(self.fileList)):
+            self.fileTimeList.append(os.path.getmtime(self.fileList[i]))
+            self.fileSizeList.append(os.path.getsize(self.fileList[i]))
+        
+        flag = False
+        expireTime = 10
+        expireSize = 1000
+        #3. inspection
+        for i in range(len(self.fileList)-1, 0, -1):
+            print("fileName:", self.fileList[i], "fileTime:", self.fileTimeList[i], "fileSize:", self.fileSizeList[i])
+            if self.startTime - self.fileTimeList[i] >= expireTime and self.fileSizeList[i] < expireSize:
+                print("remove code initiated!!!!!!!!!!!!!!!!!!!!!!", self.fileList[i])
+                os.remove(self.fileList[i])
+        print("automatically cleared ----------------------")
    
    
 if __name__ == "__main__":
