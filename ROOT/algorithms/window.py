@@ -1,29 +1,54 @@
 import os
 import sys
 from PyQt5.QtWidgets import *
+import glob
+
 
 class MyWindow(QMainWindow):
     def __init__(self, fileNumber, fileNumbersLocation):
         super().__init__()
         self.initUI()
-        self.fileNumber = fileNumber
+        self.fileNumber = fileNumber  #How can I update this?
         self.fileNumbersLocation = fileNumbersLocation
         self.textHasBeenOpened = False
         self.currentFileLocation = None
+        self.fileNumbersLocation = './config/FileNumbers.txt'
+        path = "./txtFiles/*"
+        self.fileList = glob.glob(path)
+        self.namingSystem()
+        self.namingNum = 0
+        self.namingSystem()
+        
+        if len(self.fileList) != 0:
+            self.currentFileLocation = self.fileList[0]
+
+            
+        else:
+            print('file empty')
+            self.createNewFile(self.fileNumbersLocation)
+            path = "./txtFiles/*"
+            self.fileList = glob.glob(path)
+            self.currentFileLocation = self.fileList[0]
+        
+        self.bringFile(self.fileList[0])
+        self.fileTitleLabel.setText(self.currentFileLocation)
         
         #파일, 편집, 포멧, 보기, 윈도우, 도움
         self.menubar = self.menuBar()
         self.menubar.setNativeMenuBar(False)
-
+        
+        
         # file menu action
+        
+        
         self.new_action = QAction("New")
         self.new_action.triggered.connect(self.createNewFile)
         self.open_action = QAction("Open")
-        self.open_action.triggered.connect(self.openFile)
+        self.open_action.triggered.connect(self.openFileFromDialog)
         self.save_action = QAction("Save")
         self.save_action.triggered.connect(self.saveFile)
         self.quit_action = QAction("Quit")
-        self.quit_action.triggered.connect(self.close)
+        self.quit_action.triggered.connect(self.Quit)
 
         # help menu action
         self.doc_action = QAction("Documentation")
@@ -61,8 +86,11 @@ class MyWindow(QMainWindow):
         vbox = QVBoxLayout(central_widget)
         self.te = QTextEdit()
         self.te.setAcceptRichText(True)
-        
+        #File title
+        self.fileTitleLabel = QLabel("Title")
+
         vbox.addStretch(0)
+        vbox.addWidget(self.fileTitleLabel)
         vbox.addWidget(self.te)
         vbox.addStretch(0)
 
@@ -71,20 +99,50 @@ class MyWindow(QMainWindow):
         self.setWindowTitle("BitNote")
         self.setGeometry(20, 20, 1000, 700)     
     
-    def createNewFile(self, fileNumbersLocation):
-        self.fileNumber += 1
-        print("created New File %d"%self.fileNumber)
-        print(self)
-        fileName = './txtFiles/Unnamed Note %d.txt'%self.fileNumber
-        newTxtFile = open(fileName, 'w')
+    def Quit(self):
+        self.removeCurrentEmptyFile()
+        self.close()
         
-        #wirte the FileNumbers
-        with open(fileNumbersLocation, 'w') as FileNumbers:
-            FileNumbers.write(str(self.fileNumber))
-            print('fileNumber.txt updated', self.fileNumber)
     
-    def openFile(self):
-
+    def namingSystem(self):
+        fileNames = os.listdir('./txtFiles/')
+        print(fileNames) #13rd char
+        maxNum = 0
+        for i in range(len(fileNames)):
+            a = int(fileNames[i][13])
+            if a > maxNum:
+                maxNum = a
+        print("maxNum:", maxNum)
+        self.namingNum = maxNum+1
+    
+    def createNewFile(self, fileNumbersLocation):
+        
+        if self.currentFileLocation != None and self.isCurrentFileEmpty():
+            print("Empty. no need to build new one.")
+            return
+        
+        self.fileNumber += 1
+        self.updateFileNumbers()
+        
+        print("created New File %d"%self.namingNum)
+        
+        fileName = './txtFiles/Unnamed Note %d.txt'%self.namingNum
+        newTxtFile = open(fileName, 'w')
+        self.currentFileLocation = fileName
+        
+        self.bringFile(self.currentFileLocation)
+        print("current file location: ", self.currentFileLocation)
+        self.fileTitleLabel.setText(self.currentFileLocation)
+        self.namingSystem()
+    
+    def bringFile(self, currentFileLocation):
+        with open(currentFileLocation, 'r', encoding='utf-8') as file:
+                content = file.read()
+                self.te.setPlainText(content)
+        self.currentFileLocation = currentFileLocation
+    
+    def openFileFromDialog(self):
+        self.removeCurrentEmptyFile()
         options = QFileDialog.Options()
         options |= QFileDialog.ReadOnly 
         file_path, _ = QFileDialog.getOpenFileName(self, "Open File", "", "Text Files (*.txt);;All Files (*)", options=options)
@@ -93,43 +151,59 @@ class MyWindow(QMainWindow):
             with open(file_path, 'r', encoding='utf-8') as file:
                 content = file.read()
                 self.te.setPlainText(content)
+        print("current file location: ", self.currentFileLocation)
+        self.fileTitleLabel.setText(self.currentFileLocation)
+                
     def changeDetect(self):
         #detect whether txt has changed or not.
         print("change detector initating")
 
-    def singleStepSave(self, currentFileLocation):        
+    def singleStepSave(self, fileLocation):        
         print("single step save initiated")
-        # This will let you access the test in your QTextEdit
         Text = self.te.toPlainText()
-        # This will prevent you from an error if pressed cancel on file dialog.
-        # Finally this will Save your file to the path selected.
-        with open(currentFileLocation, 'w') as file:
+        with open(fileLocation, 'w') as file:
             file.write(Text)    
             
     
     def saveFile(self):
-        if self.currentFileLocation != None: #we have opened the existing file
-            self.singleStepSave(self.currentFileLocation)
+        self.singleStepSave(self.currentFileLocation)
+        print("current file location: ", self.currentFileLocation)     
+    
+    def isCurrentFileEmpty(self):
+        isEmpty = False
+        if len (self.currentFileLocation) != 0:
+            with open(self.currentFileLocation, 'r') as file:
+                lines = file.readlines()
+                if len(lines) == 0:
+                    isEmpty = True
+            print("current file location: ", self.currentFileLocation)
+        print("location: ", self.currentFileLocation, "is empty?", isEmpty)
+        return isEmpty
+    
+    def removeCurrentEmptyFile(self):
+        #read current file
+        if fileNumber > 1 and self.isCurrentFileEmpty():
+
+            os.remove(self.currentFileLocation)
+            self.currentFileLocation = self.fileList[0]
+            self.updateFileNumbers()
+        print("current file location: ", self.currentFileLocation)
+        self.fileTitleLabel.setText(self.currentFileLocation)
+        self.namingSystem()
+
+    
+    
+    def updateFileNumbers(self):
+        dirTxtFiles_path = "./txtFiles/"
+        file_list = os.listdir(dirTxtFiles_path)
         
-        else:
-            S__File = QFileDialog.getSaveFileName(None,'SaveTextFile','/', "Text Files (*.txt)")
-            
-            # This will let you access the test in your QTextEdit
-            Text = self.te.toPlainText()
-            
-            # This will prevent you from an error if pressed cancel on file dialog.
-            if S__File[0]: 
-                # Finally this will Save your file to the path selected.
-                with open(S__File[0], 'w') as file:
-                    file.write(Text)        
-        
+        with open(self.fileNumbersLocation, 'w') as FileNumbers:
+            FileNumbers.write(str(len(file_list)))
     
-    
-
-    
- 
-
-
+        self.fileNumber = len(file_list)
+        print("file number updated")
+   
+   
 if __name__ == "__main__":
     dirTxtFiles_path = "./txtFiles/"
     file_list = os.listdir(dirTxtFiles_path)
@@ -147,9 +221,6 @@ if __name__ == "__main__":
         fileNumber = int(fileNumberTmp)
                 
     window = MyWindow(fileNumber, fileNumbersLocation)
-    
-    # while True:
-    #     window.changeDetect()
         
     window.show()
     app.exec_()
