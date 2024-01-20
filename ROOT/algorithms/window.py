@@ -3,49 +3,78 @@ import sys
 from PyQt5.QtWidgets import *
 import glob
 import time
+from datetime import datetime
+import ImportTest
 
 now = time
 
-
-
-class MyWindow(QMainWindow):
-    def __init__(self, fileNumber, fileNumbersLocation):
-        self.startTime = now.time()
+#SettingDialog
+class SettingDialog(QDialog):
+    def __init__(self):
         super().__init__()
-        self.initUI()
-        self.fileNumber = fileNumber  #How can I update this?
-        self.fileNumbersLocation = fileNumbersLocation
-        self.textHasBeenOpened = False
-        self.currentFileLocation = None
+        self.setGeometry(200,200,400,400)
+        self.show()
+        self.setWindowModality(False)
+
+class BitNoteWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        #set current directory for initiating.
+        os.chdir("/Users/johyeonho/BitNote/ROOT")
+        #set path to folder txtFiles
+        self.dirTxtFiles_path = "./txtFiles/"
+        #save list of files
+        self.file_list = os.listdir(self.dirTxtFiles_path)
+        #save number of files
+        self.fileNumber = len(self.file_list)
+        #set path to "fileNumbers"
         self.fileNumbersLocation = './config/FileNumbers.txt'
-        path = "./txtFiles/*"
-        self.fileList = glob.glob(path)
-        self.namingSystem()
+        
+        self.updateFileNumbers()
+        self.setFileManageValues()
+        self.initUI()
+        self.currentFileLocation = None
+        self.txtFilesPath = "./txtFiles/*"
+        self.fileList = glob.glob(self.txtFilesPath)
         self.namingNum = 0
         self.namingSystem()
         
+        self.getCurrentFileLocation()
+        self.bringFile(self.fileList[0])
+        #automatic remove
+        self.automaticFileRemoveSystem()
+        self.updateTxtInfo()
+
+    def updateTxtInfo(self):
+        #update Txt Info
+        self.currentFileTouchedTime = os.path.getmtime(self.currentFileLocation)
+        self.fileTitleLabel.setText(self.currentFileLocation)
+        self.fileTimeLabel.setText(str(datetime.utcfromtimestamp(self.currentFileTouchedTime)))
+
+
+    def getCurrentFileLocation(self):
         if len(self.fileList) != 0:
             self.currentFileLocation = self.fileList[0]
-
-            
         else:
             print('file empty')
-            self.createNewFile(self.fileNumbersLocation)
+            self.createNewFile()
             path = "./txtFiles/*"
             self.fileList = glob.glob(path)
             self.currentFileLocation = self.fileList[0]
         
-        self.bringFile(self.fileList[0])
-        self.fileTitleLabel.setText(self.currentFileLocation)
-        
-        #파일, 편집, 포멧, 보기, 윈도우, 도움
+    def setFileManageValues(self):
+        #values for automatic file manage                   
+        self.startTime = now.time()
+        self.expireTime = 1000000
+        self.expireSize = 1000
+    
+    def initUI(self):
+            #MenuBar setting
         self.menubar = self.menuBar()
         self.menubar.setNativeMenuBar(False)
         
         
         # file menu action
-        
-        
         self.new_action = QAction("New")
         self.new_action.triggered.connect(self.createNewFile)
         self.open_action = QAction("Open")
@@ -60,13 +89,19 @@ class MyWindow(QMainWindow):
         self.release_action = QAction("Release Notes")
         self.license_action = QAction("View License")
 
-        # file menu
+        # file menu action
         file_menu = self.menubar.addMenu("File")
         file_menu.addAction(self.new_action)
         file_menu.addAction(self.save_action)
         file_menu.addAction(self.open_action)
         file_menu.addSeparator()
         file_menu.addAction(self.quit_action)
+        
+        #setting menu action
+        setting_menu = self.menubar.addMenu("Setting")
+        self.setting_action = QAction("setting")
+        self.setting_action.triggered.connect(self.setExpireStandard)
+        setting_menu.addAction(self.setting_action)
 
         #edit menu
         edit_menu = self.menubar.addMenu("Edit")
@@ -82,31 +117,29 @@ class MyWindow(QMainWindow):
         
         # help menu
         help_menu = self.menubar.addMenu("Help")
+        #help menu actions
         help_menu.addAction(self.doc_action)
         help_menu.addAction(self.release_action)
         help_menu.addAction(self.license_action)
         
-        #automatic remove
-        self.automaticFileRemoveSystem()
-        
-    def initUI(self):
         central_widget = QWidget()
         vbox = QVBoxLayout(central_widget)
         self.te = QTextEdit()
         self.te.setAcceptRichText(True)
         #File title
         self.fileTitleLabel = QLabel("Title")
-
-        vbox.addStretch(0)
+        self.fileTimeLabel = QLabel("Time")
+        vbox.addStretch(3)
         vbox.addWidget(self.fileTitleLabel)
+        vbox.addWidget(self.fileTimeLabel)
         vbox.addWidget(self.te)
-        vbox.addStretch(0)
+        vbox.addStretch(1)
 
         self.setCentralWidget(central_widget)
         
         self.setWindowTitle("BitNote")
         self.setGeometry(20, 20, 1000, 700)     
-    
+            
     def Quit(self):
         self.removeCurrentEmptyFile()
         self.close()
@@ -122,8 +155,10 @@ class MyWindow(QMainWindow):
                 maxNum = a
         print("maxNum:", maxNum)
         self.namingNum = maxNum+1
+        
+        
     
-    def createNewFile(self, fileNumbersLocation):
+    def createNewFile(self):
         
         if self.currentFileLocation != None and self.isCurrentFileEmpty():
             print("Empty. no need to build new one.")
@@ -142,6 +177,7 @@ class MyWindow(QMainWindow):
         print("current file location: ", self.currentFileLocation)
         self.fileTitleLabel.setText(self.currentFileLocation)
         self.namingSystem()
+        self.updateTxtInfo()
     
     def bringFile(self, currentFileLocation):
         with open(currentFileLocation, 'r', encoding='utf-8') as file:
@@ -161,10 +197,7 @@ class MyWindow(QMainWindow):
                 self.te.setPlainText(content)
         print("current file location: ", self.currentFileLocation)
         self.fileTitleLabel.setText(self.currentFileLocation)
-                
-    def changeDetect(self):
-        #detect whether txt has changed or not.
-        print("change detector initating")
+        self.updateTxtInfo()
 
     def singleStepSave(self, fileLocation):        
         print("single step save initiated")
@@ -190,7 +223,7 @@ class MyWindow(QMainWindow):
     
     def removeCurrentEmptyFile(self):
         #read current file
-        if fileNumber > 1 and self.isCurrentFileEmpty():
+        if self.fileNumber > 1 and self.isCurrentFileEmpty():
 
             os.remove(self.currentFileLocation)
             self.currentFileLocation = self.fileList[0]
@@ -198,8 +231,6 @@ class MyWindow(QMainWindow):
         print("current file location: ", self.currentFileLocation)
         self.fileTitleLabel.setText(self.currentFileLocation)
         self.namingSystem()
-
-    
     
     def updateFileNumbers(self):
         dirTxtFiles_path = "./txtFiles/"
@@ -224,35 +255,26 @@ class MyWindow(QMainWindow):
             self.fileSizeList.append(os.path.getsize(self.fileList[i]))
         
         flag = False
-        expireTime = 10
-        expireSize = 1000
+        
+        
+        print("self.expireTime:", datetime.utcfromtimestamp(self.expireTime))
         #3. inspection
         for i in range(len(self.fileList)-1, 0, -1):
             print("fileName:", self.fileList[i], "fileTime:", self.fileTimeList[i], "fileSize:", self.fileSizeList[i])
-            if self.startTime - self.fileTimeList[i] >= expireTime and self.fileSizeList[i] < expireSize:
+            if self.startTime - self.fileTimeList[i] >= self.expireTime and self.fileSizeList[i] < self.expireSize:
                 print("remove code initiated!!!!!!!!!!!!!!!!!!!!!!", self.fileList[i])
                 os.remove(self.fileList[i])
         print("automatically cleared ----------------------")
+    
+    def setExpireStandard(self):
+        #if setting dialog has not opened
+        settingDialog = SettingDialog()
+        settingDialog.exec()
+        
    
    
 if __name__ == "__main__":
-    dirTxtFiles_path = "./txtFiles/"
-    file_list = os.listdir(dirTxtFiles_path)
-    file_count = len(file_list)
-    fileNumbersLocation = './config/FileNumbers.txt'
-    
     app = QApplication(sys.argv)
-    
-    with open(fileNumbersLocation, 'w') as FileNumbers:
-        FileNumbers.write(str(file_count))
-    
-    #read BitNote FileNumbers
-    with open(fileNumbersLocation, 'r') as FileNumbers:
-        fileNumberTmp = FileNumbers.read()
-        fileNumber = int(fileNumberTmp)
-                
-    window = MyWindow(fileNumber, fileNumbersLocation)
-        
+    window = BitNoteWindow()
     window.show()
     app.exec_()
-    #branch edited
