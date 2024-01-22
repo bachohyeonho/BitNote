@@ -271,7 +271,7 @@ class BitNoteWindow(QMainWindow):
         
     def addImportantFileList(self): #not updating file
         self.importantFileList.append(self.currentFileLocation)
-        print("added current file", self.importantFileList)
+        print("added current file", self.importantFileL햣 ist)
     
     def removeImportantFileList(self):
         self.importantFileList.remove(self.currentFileLocation)
