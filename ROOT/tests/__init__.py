@@ -1,5 +1,2 @@
-import time
-
-now = time
-
-print(now.time())
+a = ["./txtFiles/Bit Note 1.txt', './txtFiles/Bit Note 1.txt"]
+print(a[0])

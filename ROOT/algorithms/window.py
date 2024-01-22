@@ -4,15 +4,13 @@ from PyQt5.QtWidgets import *
 import glob
 import time
 from datetime import datetime
-import ImportTest
-
 now = time
 
 #SettingDialog
 class SettingDialog(QDialog):
     def __init__(self):
         super().__init__()
-        self.setGeometry(200,200,400,400)
+        self.setGeometry(200,200,300,300)
         self.show()
         self.setWindowModality(False)
 
@@ -29,38 +27,37 @@ class BitNoteWindow(QMainWindow):
         self.fileNumber = len(self.file_list)
         #set path to "fileNumbers"
         self.fileNumbersLocation = './config/FileNumbers.txt'
-        
         self.updateFileNumbers()
         self.setFileManageValues()
-        self.initUI()
         self.currentFileLocation = None
         self.txtFilesPath = "./txtFiles/*"
         self.fileList = glob.glob(self.txtFilesPath)
         self.namingNum = 0
-        self.namingSystem()
+        self.importantFileList = []
+        self.initUI()
         
+        self.updateNamingSystem()
         self.getCurrentFileLocation()
         self.bringFile(self.fileList[0])
         #automatic remove
         self.automaticFileRemoveSystem()
         self.updateTxtInfo()
+        self.readImportantFileList()
 
+        
     def updateTxtInfo(self):
         #update Txt Info
         self.currentFileTouchedTime = os.path.getmtime(self.currentFileLocation)
         self.fileTitleLabel.setText(self.currentFileLocation)
         self.fileTimeLabel.setText(str(datetime.utcfromtimestamp(self.currentFileTouchedTime)))
 
-
     def getCurrentFileLocation(self):
-        if len(self.fileList) != 0:
-            self.currentFileLocation = self.fileList[0]
-        else:
-            print('file empty')
+        path = "./txtFiles/*"
+        self.fileList = glob.glob(path)        
+        if len(self.fileList) == 0:
             self.createNewFile()
-            path = "./txtFiles/*"
-            self.fileList = glob.glob(path)
-            self.currentFileLocation = self.fileList[0]
+        self.fileList = glob.glob(path)  
+        self.currentFileLocation = self.fileList[0]
         
     def setFileManageValues(self):
         #values for automatic file manage                   
@@ -69,7 +66,7 @@ class BitNoteWindow(QMainWindow):
         self.expireSize = 1000
     
     def initUI(self):
-            #MenuBar setting
+        #MenuBar setting
         self.menubar = self.menuBar()
         self.menubar.setNativeMenuBar(False)
         
@@ -122,61 +119,60 @@ class BitNoteWindow(QMainWindow):
         help_menu.addAction(self.release_action)
         help_menu.addAction(self.license_action)
         
+        #important checkbox
+        self.important_checkbox = QCheckBox('Important', self)
+        self.important_checkbox.stateChanged.connect(self.importantCheckBoxControl)
         central_widget = QWidget()
         vbox = QVBoxLayout(central_widget)
         self.te = QTextEdit()
         self.te.setAcceptRichText(True)
+        
         #File title
         self.fileTitleLabel = QLabel("Title")
         self.fileTimeLabel = QLabel("Time")
         vbox.addStretch(3)
         vbox.addWidget(self.fileTitleLabel)
         vbox.addWidget(self.fileTimeLabel)
+        vbox.addWidget(self.important_checkbox)
         vbox.addWidget(self.te)
         vbox.addStretch(1)
 
         self.setCentralWidget(central_widget)
         
         self.setWindowTitle("BitNote")
-        self.setGeometry(20, 20, 1000, 700)     
+        self.setGeometry(20, 20, 500, 300)     
             
     def Quit(self):
         self.removeCurrentEmptyFile()
+        self.writeImportantFileList()
         self.close()
         
     
-    def namingSystem(self):
+    def updateNamingSystem(self):
         fileNames = os.listdir('./txtFiles/')
-        print(fileNames) #13rd char
+        print(fileNames) 
         maxNum = 0
         for i in range(len(fileNames)):
-            a = int(fileNames[i][13])
+            a = int(fileNames[i][9])
             if a > maxNum:
                 maxNum = a
-        print("maxNum:", maxNum)
         self.namingNum = maxNum+1
         
-        
-    
     def createNewFile(self):
-        
+        #if current file is empty, ignore.
         if self.currentFileLocation != None and self.isCurrentFileEmpty():
-            print("Empty. no need to build new one.")
             return
         
+        #update fileNumber
         self.fileNumber += 1
         self.updateFileNumbers()
-        
-        print("created New File %d"%self.namingNum)
-        
-        fileName = './txtFiles/Unnamed Note %d.txt'%self.namingNum
+        #create File Name.
+        fileName = './txtFiles/Bit Note %d.txt'%self.namingNum
         newTxtFile = open(fileName, 'w')
         self.currentFileLocation = fileName
         
         self.bringFile(self.currentFileLocation)
-        print("current file location: ", self.currentFileLocation)
-        self.fileTitleLabel.setText(self.currentFileLocation)
-        self.namingSystem()
+        self.updateNamingSystem()
         self.updateTxtInfo()
     
     def bringFile(self, currentFileLocation):
@@ -195,20 +191,18 @@ class BitNoteWindow(QMainWindow):
             with open(file_path, 'r', encoding='utf-8') as file:
                 content = file.read()
                 self.te.setPlainText(content)
-        print("current file location: ", self.currentFileLocation)
         self.fileTitleLabel.setText(self.currentFileLocation)
+        
         self.updateTxtInfo()
 
     def singleStepSave(self, fileLocation):        
-        print("single step save initiated")
         Text = self.te.toPlainText()
         with open(fileLocation, 'w') as file:
             file.write(Text)    
             
     
     def saveFile(self):
-        self.singleStepSave(self.currentFileLocation)
-        print("current file location: ", self.currentFileLocation)     
+        self.singleStepSave(self.currentFileLocation)     
     
     def isCurrentFileEmpty(self):
         isEmpty = False
@@ -217,20 +211,15 @@ class BitNoteWindow(QMainWindow):
                 lines = file.readlines()
                 if len(lines) == 0:
                     isEmpty = True
-            print("current file location: ", self.currentFileLocation)
-        print("location: ", self.currentFileLocation, "is empty?", isEmpty)
         return isEmpty
     
     def removeCurrentEmptyFile(self):
         #read current file
         if self.fileNumber > 1 and self.isCurrentFileEmpty():
-
             os.remove(self.currentFileLocation)
             self.currentFileLocation = self.fileList[0]
             self.updateFileNumbers()
-        print("current file location: ", self.currentFileLocation)
-        self.fileTitleLabel.setText(self.currentFileLocation)
-        self.namingSystem()
+        self.updateNamingSystem()
     
     def updateFileNumbers(self):
         dirTxtFiles_path = "./txtFiles/"
@@ -254,9 +243,6 @@ class BitNoteWindow(QMainWindow):
             self.fileTimeList.append(os.path.getmtime(self.fileList[i]))
             self.fileSizeList.append(os.path.getsize(self.fileList[i]))
         
-        flag = False
-        
-        
         print("self.expireTime:", datetime.utcfromtimestamp(self.expireTime))
         #3. inspection
         for i in range(len(self.fileList)-1, 0, -1):
@@ -270,8 +256,36 @@ class BitNoteWindow(QMainWindow):
         #if setting dialog has not opened
         settingDialog = SettingDialog()
         settingDialog.exec()
+    
+    def readImportantFileList(self):
+        with open("./config/ImportantFileList.txt", 'r') as f:
+            tmp = f.readlines()
+        tmp = str(tmp)
+        tmp = tmp[1:-1:1]
+        tmp = tmp[1:-1:1]
+        tmp = tmp[1:-1:1]
+        tmp = tmp[1:-1:1]
+        self.importantFileList.append(tmp)
+        print("read important file list", self.importantFileList)
+
         
+    def addImportantFileList(self): #not updating file
+        self.importantFileList.append(self.currentFileLocation)
+        print("added current file", self.importantFileList)
+    
+    def removeImportantFileList(self):
+        self.importantFileList.remove(self.currentFileLocation)
+        print("removed current file", self.importantFileList)
+        
+    def writeImportantFileList(self):
+        with open("./config/ImportantFileList.txt", 'w') as f:
+            f.write(str(self.importantFileList))
    
+    def importantCheckBoxControl(self):
+        if self.important_checkbox.isChecked():
+            self.addImportantFileList()
+        else:
+            self.removeImportantFileList()
    
 if __name__ == "__main__":
     app = QApplication(sys.argv)
