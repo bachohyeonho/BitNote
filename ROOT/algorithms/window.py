@@ -1,6 +1,7 @@
 import os
 import sys
 from PyQt5.QtWidgets import *
+from PyQt5.QtCore import *
 import glob
 import time
 from datetime import datetime
@@ -10,9 +11,25 @@ now = time
 class SettingDialog(QDialog):
     def __init__(self):
         super().__init__()
-        self.setGeometry(200,200,300,300)
-        self.show()
-        self.setWindowModality(False)
+        self.timeSpinBox = QSpinBox(self)
+        self.sizeSpinBox = QSpinBox(self)
+        timeLabel = QLabel("Expire Time(hours): ", self)
+        timeLabel.move(10, 20)
+        sizeLabel = QLabel("Expire Size(characters): ", self)
+        sizeLabel.move(10, 100)
+
+        self.timeSpinBox.move(180, 20)
+        self.timeSpinBox.resize(80, 22)
+        self.timeSpinBox.valueChanged.connect(self.setExpireDate)
+        self.sizeSpinBox.move(180, 100)
+        self.sizeSpinBox.resize(80, 22)
+        self.sizeSpinBox.valueChanged.connect(self.setExpireCharcterNum)
+    
+    def setExpireCharcterNum(self):
+        print('expire data')
+        
+    def setExpireDate(self):
+        pass
 
 class BitNoteWindow(QMainWindow):
     def __init__(self):
@@ -36,14 +53,16 @@ class BitNoteWindow(QMainWindow):
         self.importantFileList = []
         self.initUI()
         
+        self.automaticFileRemoveSystem()
         self.updateNamingSystem()
         self.getCurrentFileLocation()
         self.bringFile(self.fileList[0])
         #automatic remove
-        self.automaticFileRemoveSystem()
         self.updateTxtInfo()
-        self.readImportantFileList()
+        self.isImportant = False
 
+    def closeEvent(self, event):
+        self.Quit()
         
     def updateTxtInfo(self):
         #update Txt Info
@@ -62,14 +81,13 @@ class BitNoteWindow(QMainWindow):
     def setFileManageValues(self):
         #values for automatic file manage                   
         self.startTime = now.time()
-        self.expireTime = 1000000
-        self.expireSize = 1000
+        self.expireTime = 1
+        self.expireSize = 1000000
     
     def initUI(self):
         #MenuBar setting
         self.menubar = self.menuBar()
         self.menubar.setNativeMenuBar(False)
-        
         
         # file menu action
         self.new_action = QAction("New")
@@ -144,13 +162,12 @@ class BitNoteWindow(QMainWindow):
             
     def Quit(self):
         self.removeCurrentEmptyFile()
-        self.writeImportantFileList()
         self.close()
         
     
     def updateNamingSystem(self):
         fileNames = os.listdir('./txtFiles/')
-        print(fileNames) 
+        #print(fileNames) 
         maxNum = 0
         for i in range(len(fileNames)):
             a = int(fileNames[i][9])
@@ -168,7 +185,9 @@ class BitNoteWindow(QMainWindow):
         self.updateFileNumbers()
         #create File Name.
         fileName = './txtFiles/Bit Note %d.txt'%self.namingNum
-        newTxtFile = open(fileName, 'w')
+        
+        with open(fileName, 'w') as newTxtFile:
+            newTxtFile.write("NotImportant")    
         self.currentFileLocation = fileName
         
         self.bringFile(self.currentFileLocation)
@@ -176,9 +195,21 @@ class BitNoteWindow(QMainWindow):
         self.updateTxtInfo()
     
     def bringFile(self, currentFileLocation):
-        with open(currentFileLocation, 'r', encoding='utf-8') as file:
-                content = file.read()
-                self.te.setPlainText(content)
+        with open(currentFileLocation, 'r') as file:
+                importantTmp = file.readline()
+                content2 = file.read()
+                self.te.setPlainText(content2)
+        if importantTmp == 'Important\n':
+            if self.important_checkbox.isChecked():
+                pass
+            else:
+                self.important_checkbox.toggle()
+        else:
+            if self.important_checkbox.isChecked():
+                self.important_checkbox.toggle()
+            else:
+                pass
+            
         self.currentFileLocation = currentFileLocation
     
     def openFileFromDialog(self):
@@ -187,18 +218,15 @@ class BitNoteWindow(QMainWindow):
         options |= QFileDialog.ReadOnly 
         file_path, _ = QFileDialog.getOpenFileName(self, "Open File", "", "Text Files (*.txt);;All Files (*)", options=options)
         self.currentFileLocation = file_path
-        if file_path:
-            with open(file_path, 'r', encoding='utf-8') as file:
-                content = file.read()
-                self.te.setPlainText(content)
-        self.fileTitleLabel.setText(self.currentFileLocation)
+        self.bringFile(self.currentFileLocation)
         
         self.updateTxtInfo()
 
     def singleStepSave(self, fileLocation):        
         Text = self.te.toPlainText()
+        tmp = "Important" if self.isImportant else "NotImportant"
         with open(fileLocation, 'w') as file:
-            file.write(Text)    
+            file.writelines([tmp, '\n', Text])
             
     
     def saveFile(self):
@@ -229,7 +257,7 @@ class BitNoteWindow(QMainWindow):
             FileNumbers.write(str(len(file_list)))
     
         self.fileNumber = len(file_list)
-        print("file number updated")
+        #print("file number updated")
         
     def automaticFileRemoveSystem(self):
         #1. get File List
@@ -237,55 +265,54 @@ class BitNoteWindow(QMainWindow):
         self.fileList = glob.glob(path)
         self.fileTimeList = []
         self.fileSizeList = []
+        self.importantFileList = []
         
         #2. get managed time of files. also list. and also 
         for i in range(len(self.fileList)):
             self.fileTimeList.append(os.path.getmtime(self.fileList[i]))
             self.fileSizeList.append(os.path.getsize(self.fileList[i]))
+            with open(self.fileList[i], 'r') as f:
+                tmp = f.readline()
+            if tmp == 'Important\n':
+                self.importantFileList.append(True)
+            else: 
+                self.importantFileList.append(False)
+        print("........:", self.importantFileList)
         
-        print("self.expireTime:", datetime.utcfromtimestamp(self.expireTime))
+        #print("self.expireTime:", datetime.utcfromtimestamp(self.expireTime))
         #3. inspection
-        for i in range(len(self.fileList)-1, 0, -1):
-            print("fileName:", self.fileList[i], "fileTime:", self.fileTimeList[i], "fileSize:", self.fileSizeList[i])
-            if self.startTime - self.fileTimeList[i] >= self.expireTime and self.fileSizeList[i] < self.expireSize:
-                print("remove code initiated!!!!!!!!!!!!!!!!!!!!!!", self.fileList[i])
+        #for i in range(len(self.fileList)-1, 0, -1):
+        for i in range(0, len(self.fileList)):
+            #print("fileName:", self.fileList[i], "fileTime:", self.fileTimeList[i], "fileSize:", self.fileSizeList[i])
+            timeTmp = self.startTime - self.fileTimeList[i]
+            sizeTmp = self.fileSizeList[i]
+            print("expireValuesLog:", timeTmp, sizeTmp, self.importantFileList[i])
+            if timeTmp >= self.expireTime and sizeTmp < self.expireSize and not self.importantFileList[i]:
+                #print("remove code initiated!!!!!!!!!!!!!!!!!!!!!!", self.fileList[i])
+                print("cleared:", self.fileList[i])
                 os.remove(self.fileList[i])
+        #만약 다 지웠으면 생성. 그냥 init할때 얘가 생성이 삭제보다 다 먼저 나오게 하면 되afd
         print("automatically cleared ----------------------")
     
     def setExpireStandard(self):
         #if setting dialog has not opened
         settingDialog = SettingDialog()
+        settingDialog.setWindowModality(Qt.ApplicationModal)
+        settingDialog.setGeometry(200,200,300,300)
         settingDialog.exec()
+        settingDialog.show()
+        
+    def addImportantFile(self): #not updating file
+        self.isImportant = True
     
-    def readImportantFileList(self):
-        with open("./config/ImportantFileList.txt", 'r') as f:
-            tmp = f.readlines()
-        tmp = str(tmp)
-        tmp = tmp[1:-1:1]
-        tmp = tmp[1:-1:1]
-        tmp = tmp[1:-1:1]
-        tmp = tmp[1:-1:1]
-        self.importantFileList.append(tmp)
-        print("read important file list", self.importantFileList)
+    def removeImportantFile(self):
+        self.isImportant = False
 
-        
-    def addImportantFileList(self): #not updating file
-        self.importantFileList.append(self.currentFileLocation)
-        print("added current file", self.importantFileL햣 ist)
-    
-    def removeImportantFileList(self):
-        self.importantFileList.remove(self.currentFileLocation)
-        print("removed current file", self.importantFileList)
-        
-    def writeImportantFileList(self):
-        with open("./config/ImportantFileList.txt", 'w') as f:
-            f.write(str(self.importantFileList))
-   
     def importantCheckBoxControl(self):
         if self.important_checkbox.isChecked():
-            self.addImportantFileList()
+            self.addImportantFile()
         else:
-            self.removeImportantFileList()
+            self.removeImportantFile()
    
 if __name__ == "__main__":
     app = QApplication(sys.argv)
