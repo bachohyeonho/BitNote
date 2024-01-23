@@ -1,35 +1,47 @@
+import glob
 import os
 import sys
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import *
-import glob
 import time
 from datetime import datetime
+
+from PyQt5.QtCore import *
+from PyQt5.QtWidgets import *
+
 now = time
 
 #SettingDialog
 class SettingDialog(QDialog):
-    def __init__(self):
+    def __init__(self, BitNoteWindow):
         super().__init__()
         self.timeSpinBox = QSpinBox(self)
         self.sizeSpinBox = QSpinBox(self)
-        timeLabel = QLabel("Expire Time(hours): ", self)
+        timeLabel = QLabel("Expire Time(days): ", self)
         timeLabel.move(10, 20)
-        sizeLabel = QLabel("Expire Size(characters): ", self)
+        sizeLabel = QLabel("Expire Size(unix characters): ", self)
         sizeLabel.move(10, 100)
+        self.t, self.s = 0, 0
 
         self.timeSpinBox.move(180, 20)
         self.timeSpinBox.resize(80, 22)
-        self.timeSpinBox.valueChanged.connect(self.setExpireDate)
         self.sizeSpinBox.move(180, 100)
         self.sizeSpinBox.resize(80, 22)
-        self.sizeSpinBox.valueChanged.connect(self.setExpireCharcterNum)
-    
-    def setExpireCharcterNum(self):
-        print('expire data')
+        self.bringValues()
         
-    def setExpireDate(self):
-        pass
+    def bringValues(self):
+        with open('./config/ExpireValue.txt', 'r') as f:
+            self.t = int(f.readline())//86400
+            self.s = int(f.readline())
+        #now set these values into spin box.
+        self.timeSpinBox.setValue(self.t)
+        self.sizeSpinBox.setValue(self.s)
+        
+
+    def closeEvent(self, event):
+        print('close event!!!!!!!!!')
+        os.chdir("/Users/johyeonho/BitNote/ROOT")
+        with open('./config/ExpireValue.txt', 'w') as f:
+            f.writelines([str(self.timeSpinBox.value()*86400),'\n', str(self.sizeSpinBox.value())])
+        
 
 class BitNoteWindow(QMainWindow):
     def __init__(self):
@@ -45,7 +57,6 @@ class BitNoteWindow(QMainWindow):
         #set path to "fileNumbers"
         self.fileNumbersLocation = './config/FileNumbers.txt'
         self.updateFileNumbers()
-        self.setFileManageValues()
         self.currentFileLocation = None
         self.txtFilesPath = "./txtFiles/*"
         self.fileList = glob.glob(self.txtFilesPath)
@@ -53,6 +64,8 @@ class BitNoteWindow(QMainWindow):
         self.importantFileList = []
         self.initUI()
         
+        self.startTime = now.time()
+        self.bringValues()
         self.automaticFileRemoveSystem()
         self.updateNamingSystem()
         self.getCurrentFileLocation()
@@ -60,7 +73,15 @@ class BitNoteWindow(QMainWindow):
         #automatic remove
         self.updateTxtInfo()
         self.isImportant = False
+        self.bringFileListOnWidget()
 
+    def bringValues(self):
+        with open('./config/ExpireValue.txt', 'r') as f:
+            self.expireTime = int(f.readline())
+            self.expireSize = int(f.readline())
+        print('value brought:', self.expireTime, self.expireSize)
+            
+        
     def closeEvent(self, event):
         self.Quit()
         
@@ -68,7 +89,9 @@ class BitNoteWindow(QMainWindow):
         #update Txt Info
         self.currentFileTouchedTime = os.path.getmtime(self.currentFileLocation)
         self.fileTitleLabel.setText(self.currentFileLocation)
-        self.fileTimeLabel.setText(str(datetime.utcfromtimestamp(self.currentFileTouchedTime)))
+        dt_object = datetime.utcfromtimestamp(self.currentFileTouchedTime)
+        formatted_date = dt_object.strftime('%Y-%m-%d %H:%M:%S')
+        self.fileTimeLabel.setText(str(formatted_date))
 
     def getCurrentFileLocation(self):
         path = "./txtFiles/*"
@@ -78,11 +101,6 @@ class BitNoteWindow(QMainWindow):
         self.fileList = glob.glob(path)  
         self.currentFileLocation = self.fileList[0]
         
-    def setFileManageValues(self):
-        #values for automatic file manage                   
-        self.startTime = now.time()
-        self.expireTime = 1
-        self.expireSize = 1000000
     
     def initUI(self):
         #MenuBar setting
@@ -130,6 +148,9 @@ class BitNoteWindow(QMainWindow):
         #window menu
         window_menu = self.menubar.addMenu("Window")
         
+        ####file list
+        self.file_list_widget = QListWidget(self)
+        
         # help menu
         help_menu = self.menubar.addMenu("Help")
         #help menu actions
@@ -143,12 +164,16 @@ class BitNoteWindow(QMainWindow):
         central_widget = QWidget()
         vbox = QVBoxLayout(central_widget)
         self.te = QTextEdit()
+        #font =  QtGui.QFont()
+        #font.setPointSize(20)
+        #self.te.setFont(font)
         self.te.setAcceptRichText(True)
         
         #File title
         self.fileTitleLabel = QLabel("Title")
         self.fileTimeLabel = QLabel("Time")
         vbox.addStretch(3)
+        vbox.addWidget(self.file_list_widget)
         vbox.addWidget(self.fileTitleLabel)
         vbox.addWidget(self.fileTimeLabel)
         vbox.addWidget(self.important_checkbox)
@@ -159,7 +184,12 @@ class BitNoteWindow(QMainWindow):
         
         self.setWindowTitle("BitNote")
         self.setGeometry(20, 20, 500, 300)     
-            
+    
+    def bringFileListOnWidget(self):
+
+        self.file_list_widget.clear()
+        self.file_list_widget.addItems(self.fileList)
+    
     def Quit(self):
         self.removeCurrentEmptyFile()
         self.close()
@@ -168,12 +198,8 @@ class BitNoteWindow(QMainWindow):
     def updateNamingSystem(self):
         fileNames = os.listdir('./txtFiles/')
         #print(fileNames) 
-        maxNum = 0
-        for i in range(len(fileNames)):
-            a = int(fileNames[i][9])
-            if a > maxNum:
-                maxNum = a
-        self.namingNum = maxNum+1
+        
+        self.namingNum = len(fileNames)+1
         
     def createNewFile(self):
         #if current file is empty, ignore.
@@ -184,7 +210,7 @@ class BitNoteWindow(QMainWindow):
         self.fileNumber += 1
         self.updateFileNumbers()
         #create File Name.
-        fileName = './txtFiles/Bit Note %d.txt'%self.namingNum
+        fileName = './txtFiles/Bit Note %d.txt'%self.fileNumber
         
         with open(fileName, 'w') as newTxtFile:
             newTxtFile.write("NotImportant")    
@@ -209,7 +235,8 @@ class BitNoteWindow(QMainWindow):
                 self.important_checkbox.toggle()
             else:
                 pass
-            
+        self.bringFileListOnWidget()
+
         self.currentFileLocation = currentFileLocation
     
     def openFileFromDialog(self):
@@ -236,6 +263,7 @@ class BitNoteWindow(QMainWindow):
         isEmpty = False
         if len (self.currentFileLocation) != 0:
             with open(self.currentFileLocation, 'r') as file:
+                garbage = file.readline()
                 lines = file.readlines()
                 if len(lines) == 0:
                     isEmpty = True
@@ -296,11 +324,13 @@ class BitNoteWindow(QMainWindow):
     
     def setExpireStandard(self):
         #if setting dialog has not opened
-        settingDialog = SettingDialog()
+        settingDialog = SettingDialog(self)
         settingDialog.setWindowModality(Qt.ApplicationModal)
         settingDialog.setGeometry(200,200,300,300)
         settingDialog.exec()
         settingDialog.show()
+        print(self.expireTime, self.expireSize)
+
         
     def addImportantFile(self): #not updating file
         self.isImportant = True
